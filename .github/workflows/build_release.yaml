@@ -1,0 +1,137 @@
+# This file was generated using Kotlin DSL (.github/workflows/build_release.main.kts).
+# If you want to modify the workflow, please change the Kotlin file and regenerate this YAML file.
+# Generated with https://github.com/typesafegithub/github-workflows-kt
+
+name: 'Construct Release'
+on:
+  workflow_dispatch: {}
+concurrency:
+  group: '${{ github.workflow }}'
+  cancel-in-progress: true
+jobs:
+  check_yaml_consistency:
+    name: 'Check YAML consistency'
+    runs-on: 'ubuntu-latest'
+    steps:
+    - id: 'step-0'
+      name: 'Check out'
+      uses: 'actions/checkout@v4'
+    - id: 'step-1'
+      name: 'Execute script'
+      run: 'rm ''.github/workflows/build_release.yaml'' && ''.github/workflows/build_release.main.kts'''
+    - id: 'step-2'
+      name: 'Consistency check'
+      run: 'git diff --exit-code ''.github/workflows/build_release.yaml'''
+  assemble_release:
+    name: 'Construct Release extensions repository'
+    runs-on: 'ubuntu-latest'
+    needs:
+    - 'check_yaml_consistency'
+    steps:
+    - id: 'step-0'
+      name: 'Clone repo'
+      uses: 'actions/checkout@v4'
+    - id: 'step-1'
+      name: 'Validate Gradle Wrapper'
+      uses: 'gradle/wrapper-validation-action@v1'
+    - id: 'step-2'
+      name: 'Set up JDK'
+      uses: 'actions/setup-java@v4'
+      with:
+        java-version: '21'
+        distribution: 'adopt'
+    - id: 'step-3'
+      name: 'Setup Gradle'
+      uses: 'gradle/gradle-build-action@v2'
+    - id: 'step-4'
+      name: 'Prepare signing key'
+      run: 'echo ${{ secrets.KEY_STORE }} | base64 -d > ${{ secrets.KEY_FILE_NAME }}'
+    - id: 'step-5'
+      name: 'Construct release Repo'
+      env:
+        KEY_FILE_NAME: '${{ secrets.KEY_FILE_NAME }}'
+        KEY_STORE_PASSWORD: '${{ secrets.KEY_STORE_PASSWORD }}'
+        KEY_STORE_ALIAS: '${{ secrets.KEY_STORE_ALIAS }}'
+        KEY_PASSWORD: '${{ secrets.KEY_PASSWORD }}'
+      run: './gradlew :constructReleaseRepo'
+    - id: 'step-6'
+      name: 'Upload repo'
+      uses: 'actions/upload-artifact@v4'
+      with:
+        name: 'release-repo'
+        path: './build/repo/release/'
+        if-no-files-found: 'error'
+        retention-days: '1'
+    - id: 'step-7'
+      name: 'Clean up CI files'
+      run: 'rm ${{ secrets.KEY_FILE_NAME }}'
+      if: '${{ always() }}'
+  publish_repo:
+    name: 'Publish release repo'
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'write'
+    needs:
+    - 'assemble_release'
+    - 'check_yaml_consistency'
+    if: '''true'' == ${{ vars.DO_PUBLISH_REPO }}'
+    steps:
+    - id: 'step-0'
+      name: 'Checkout repo branch'
+      uses: 'actions/checkout@v4'
+      with:
+        ref: 'repo'
+        path: 'repo'
+    - id: 'step-1'
+      name: 'Download updated release'
+      uses: 'actions/download-artifact@v4'
+      with:
+        name: 'release-repo'
+        path: '~/release'
+    - id: 'step-2'
+      name: 'Fail on error'
+      run: 'set -e'
+    - id: 'step-3'
+      name: 'Show release contents'
+      run: 'ls -AR ~/release'
+    - id: 'step-4'
+      name: 'Show repo contents'
+      run: 'ls -AR ./repo'
+    - id: 'step-5'
+      name: 'Delete old contents'
+      run: |
+        cd ./repo
+        shopt -s extglob
+        rm -rf !(.git)
+        shopt -u extglob
+        ls -AR .
+    - id: 'step-6'
+      name: 'Copy new contents'
+      run: 'cp -aT ~/release/ ./repo'
+    - id: 'step-7'
+      name: 'Set email and name'
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+    - id: 'step-8'
+      name: 'Commit if necessary'
+      run: |
+        cd ./repo
+        ls -AR .
+        git status
+        if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Update repo"
+            git push
+            echo "Repository updated"
+        else
+            echo "No changes to commit"
+        fi
+    - id: 'step-9'
+      name: 'Purge JsDelivr Cache'
+      uses: 'gacts/purge-jsdelivr-cache@v1'
+      with:
+        url: |-
+          https://cdn.jsdelivr.net/gh/${{ github.repository }}@repo/index.json
+          https://cdn.jsdelivr.net/gh/${{ github.repository }}@repo/index.min.json
+        attempts: '3'

@@ -1,0 +1,26 @@
+# Change these versions if you wish
+
+[versions]
+kotlin_target = "1.9.22"
+kotlin_language = "1.9"
+kotlin_gradleCompatible = "1.9.20" # <- Check the gradle compatibility matrix if you want to change this version
+kotlin_ktor = "2.3.7"
+kotlin_serialization = "1.6.2"
+
+android_gradlePlugin = "8.2.1"
+sdk_compile = "34"
+
+undercouch_download = "5.5.0"
+
+[plugins]
+
+[libraries]
+# gradle_kotlinter = { group = "org.jmailen.gradle", name = "kotlinter-gradle", version = "3.13.0" }
+
+kotlin_stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib-jdk8", version.ref = "kotlin_target" }
+kotlin_ktor = { group = "io.ktor", name = "ktor-server-netty", version.ref = "kotlin_ktor" }
+
+kotlin_protobuf = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-protobuf", version.ref = "kotlin_serialization" }
+kotlin_json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlin_serialization" }
+
+[bundles]
